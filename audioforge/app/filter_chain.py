@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import subprocess
 from pathlib import Path
 from typing import Any, Callable
@@ -80,10 +81,31 @@ class FilterChainManager:
         self.config_path: Path | None = None
         self.node_id: str | None = None
         self.mode = "direct-fallback"
+        self.last_error: str | None = None
 
     @staticmethod
     def _run_command(argv: list[str]) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(argv, capture_output=True, text=True, check=True)
+        return subprocess.run(argv, capture_output=True, text=True, check=False)
+
+    @staticmethod
+    def _object_id(stdout: str) -> str | None:
+        for pattern in (r"(?m)^\s*id\s*[:=]\s*(\d+)\b", r"(?m)\bobject\s+(\d+)\b"):
+            match = re.search(pattern, stdout)
+            if match:
+                return match.group(1)
+        return None
+
+    @classmethod
+    def _checked_result(cls, result: Any, operation: str) -> tuple[str, str]:
+        if result is True:
+            raise RuntimeError(f"{operation} returned no verifiable result")
+        returncode = getattr(result, "returncode", None)
+        stdout = str(getattr(result, "stdout", "") or "")
+        stderr = str(getattr(result, "stderr", "") or "")
+        if returncode != 0 or stderr.strip():
+            detail = stderr.strip() or stdout.strip() or f"exit code {returncode}"
+            raise RuntimeError(f"{operation} failed: {detail}")
+        return stdout, stderr
 
     def start(self, state: AudioState, *, sink_name: str | None = None) -> Path:
         self.stop()
@@ -95,10 +117,19 @@ class FilterChainManager:
             return self.config_path
         try:
             result = self.command_runner(["pw-cli", "create-node", "libpipewire-module-filter-chain", str(self.config_path)])
-            output = getattr(result, "stdout", "") if result is not True else ""
-            self.node_id = (str(output).strip().split()[-1] if output and str(output).strip() else f"audioforge-{self.config_path.stem}")
+            output, _ = self._checked_result(result, "filter-chain creation")
+            candidate = self._object_id(output)
+            if candidate is None:
+                raise RuntimeError("filter-chain creation returned no valid object ID")
+            verification = self.command_runner(["pw-cli", "info", candidate])
+            graph_output, _ = self._checked_result(verification, "filter-chain graph verification")
+            verified_id = self._object_id(graph_output)
+            if verified_id != candidate:
+                raise RuntimeError(f"graph verification did not confirm object {candidate}")
+            self.node_id = candidate
             self.mode = "live"
-        except (OSError, subprocess.SubprocessError, ValueError) as exc:
+            self.last_error = None
+        except (OSError, subprocess.SubprocessError, ValueError, RuntimeError) as exc:
             self.node_id = None
             self.mode = "fallback"
             self.last_error = str(exc)

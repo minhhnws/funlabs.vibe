@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -33,11 +34,19 @@ def main() -> int:
     controller = AudioForgeController(chain_manager=manager)
     server = create_server(args.host, args.port, controller=controller)
     print(f"AudioForge API listening on http://{args.host}:{args.port}", flush=True)
+    def request_shutdown(_signum, _frame):
+        raise KeyboardInterrupt
+
+    previous_handlers = {signum: signal.getsignal(signum) for signum in (signal.SIGINT, signal.SIGTERM)}
+    signal.signal(signal.SIGINT, request_shutdown)
+    signal.signal(signal.SIGTERM, request_shutdown)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        for signum, handler in previous_handlers.items():
+            signal.signal(signum, handler)
         stop_engine(controller.state, manager)
         server.server_close()
     return 0

@@ -1,4 +1,5 @@
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -76,7 +77,7 @@ def test_manager_uses_supported_engine_without_shell_interpolation(tmp_path: Pat
     calls = []
     manager = FilterChainManager(
         tmp_path,
-        command_runner=lambda argv: calls.append(list(argv)) or True,
+        command_runner=lambda argv: calls.append(list(argv)) or subprocess.CompletedProcess(argv, 0, "id: 42, type: PipeWire:Interface:Node\n", ""),
         engine_supported=True,
     )
 
@@ -87,4 +88,47 @@ def test_manager_uses_supported_engine_without_shell_interpolation(tmp_path: Pat
     assert calls[0][0] == "pw-cli"
     assert all(isinstance(arg, str) for arg in calls[0])
     assert "safe sink" not in " ".join(calls[0])
+    assert node_id == "42"
     assert calls[-1] == ["pw-cli", "destroy", node_id]
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        subprocess.CompletedProcess([], 0, "", "unknown factory name libpipewire-module-filter-chain"),
+        subprocess.CompletedProcess([], 0, "", "warning: creation failed"),
+        subprocess.CompletedProcess([], 0, "not an object id", ""),
+        subprocess.CompletedProcess([], 1, "id: 42", "creation failed"),
+    ],
+)
+def test_creation_uncertainty_keeps_fallback_and_does_not_destroy(tmp_path: Path, result):
+    calls = []
+
+    def runner(argv):
+        calls.append(list(argv))
+        return result
+
+    manager = FilterChainManager(tmp_path, command_runner=runner, engine_supported=True)
+    manager.start(create_default_state())
+
+    assert manager.mode == "fallback"
+    assert manager.node_id is None
+    manager.stop()
+    assert not any(argv[1] == "destroy" for argv in calls)
+
+
+def test_created_id_must_be_verified_in_graph_before_live(tmp_path: Path):
+    calls = []
+
+    def runner(argv):
+        calls.append(list(argv))
+        if argv[1] == "create-node":
+            return subprocess.CompletedProcess(argv, 0, "id: 42, type: PipeWire:Interface:Node\n", "")
+        return subprocess.CompletedProcess(argv, 1, "", "object not found")
+
+    manager = FilterChainManager(tmp_path, command_runner=runner, engine_supported=True)
+    manager.start(create_default_state())
+
+    assert manager.mode == "fallback"
+    assert manager.node_id is None
+    assert calls[-1] == ["pw-cli", "info", "42"]

@@ -2,6 +2,9 @@ from audioforge.app.engine import EngineStatus, safe_fallback, set_bypass, start
 from audioforge.app.pipewire import PipeWireAdapter
 from audioforge.app.state import create_default_state
 from audioforge.tests.test_pipewire import dump_payload
+import subprocess
+from pathlib import Path
+from audioforge.app.filter_chain import FilterChainManager
 
 
 def test_start_stays_bypassed_without_a_filter_chain():
@@ -79,3 +82,22 @@ def test_engine_reports_nonzero_pw_dump_without_traceback():
     assert status.mode == "fallback"
     assert state.bypass is True
     assert "permission denied" in status.reason
+
+
+def test_engine_keeps_bypass_on_pw_cli_stderr_only_creation(tmp_path: Path):
+    state = create_default_state()
+    adapter = PipeWireAdapter(runner=lambda _argv: dump_payload())
+    manager = FilterChainManager(
+        tmp_path,
+        engine_supported=True,
+        command_runner=lambda argv: subprocess.CompletedProcess(
+            argv, 0, "", "unknown factory name libpipewire-module-filter-chain"
+        ),
+    )
+
+    status = start_engine(state, adapter, manager)
+
+    assert status.mode == "live"
+    assert status.filter_chain_available is False
+    assert state.bypass is True
+    assert manager.mode == "fallback"
