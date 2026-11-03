@@ -1,0 +1,1 @@
+"""AudioForge local application."""

@@ -1,0 +1,1 @@
+"""AudioForge application package."""
