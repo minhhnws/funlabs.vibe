@@ -7,6 +7,29 @@ from audioforge.app.native import NativePipeWireHost, render_native_conf
 from audioforge.app.state import create_default_state
 
 
+def test_native_graph_detection_finds_owned_sink_and_output():
+    status = "Audio\n  77. audioforge [vol: 1.00]\n  78. audioforge_output [Stream/Output/Audio]\n"
+
+    def run(argv, **kwargs):
+        assert argv == ["wpctl", "status"]
+        return subprocess.CompletedProcess(argv, 0, status, "")
+
+    from audioforge.app.native import detect_native_graph
+
+    assert detect_native_graph(run, sink_name="audioforge") == ("77", "78")
+
+
+def test_native_graph_detection_requires_owned_sink_and_output():
+    status = "Audio\n  77. audioforge [vol: 1.00]\n"
+
+    def run(argv, **kwargs):
+        return subprocess.CompletedProcess(argv, 0, status, "")
+
+    from audioforge.app.native import detect_native_graph
+
+    assert detect_native_graph(run, sink_name="audioforge") is None
+
+
 def test_native_conf_is_pipewire_factory_config_and_injects_state():
     state = create_default_state("Club")
     state.output_gain_db = 4.0

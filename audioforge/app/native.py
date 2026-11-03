@@ -13,6 +13,30 @@ from .state import AudioState, validate_state
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 
 
+def detect_native_graph(
+    runner: Runner = subprocess.run, *, sink_name: str = "audioforge"
+) -> tuple[str, str] | None:
+    """Return owned native sink/output IDs only when both graph nodes exist."""
+    try:
+        result = runner(["wpctl", "status"], capture_output=True, text=True, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode:
+        return None
+
+    def node_id(name: str) -> str | None:
+        pattern = re.compile(r"\b(\d+)\.\s+" + re.escape(name) + r"(?:\s|\[|$)")
+        for line in result.stdout.splitlines():
+            match = pattern.search(line)
+            if match:
+                return match.group(1)
+        return None
+
+    sink_id = node_id(sink_name)
+    output_id = node_id(sink_name + "_output")
+    return (sink_id, output_id) if sink_id and output_id else None
+
+
 def _gain(state: AudioState, module: str, key: str, default: float = 0.0) -> float:
     value = state.modules.get(module)
     return float(value.parameters.get(key, default)) if value else default
