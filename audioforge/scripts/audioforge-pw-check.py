@@ -20,7 +20,7 @@ def main() -> int:
     if not sink.available:
         print(f"Status: {sink.status}")
         print(f"Reason: {sink.reason or 'unknown'}")
-        print("Real filter-chain path: active" if graph else "Real filter-chain path: unavailable")
+        print("Real filter-chain path: active" if graph and sink.available else "Real filter-chain path: unavailable")
         return 1
     layout = discover_channel_layout(adapter)
     print(f"Default sink: {sink.name}")
