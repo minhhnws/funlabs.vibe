@@ -44,6 +44,16 @@ def test_native_conf_is_pipewire_factory_config_and_injects_state():
     assert not rendered.lstrip().startswith("{")
 
 
+def test_native_conf_renders_chill_values():
+    rendered = render_native_conf(create_default_state("Chill"), "audioforge")
+    assert '"Freq" = 90.0 "Q" = 0.7 "Gain" = 1.5' in rendered
+    assert '"Freq" = 220.0 "Q" = 1.0 "Gain" = 1.0' in rendered
+    assert '"Freq" = 1200.0 "Q" = 0.9 "Gain" = 1.5' in rendered
+    assert '"Freq" = 3200.0 "Q" = 0.8 "Gain" = -0.5' in rendered
+    assert '"Freq" = 9000.0 "Q" = 0.7 "Gain" = -0.5' in rendered
+    assert '"Gain" = -0.5' in rendered
+
+
 def test_native_host_restores_default_and_moves_streams(tmp_path: Path):
     calls = []
 

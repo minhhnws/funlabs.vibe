@@ -49,6 +49,8 @@ def create_profile_state(name: str) -> ProfileState:
         return ProfileState(name, "Controlled bass punch, bus glue, and spacious highs.")
     if name == "Cinema":
         return ProfileState(name, "Transparent dialogue support with preserved dynamics.")
+    if name == "Chill":
+        return ProfileState(name, "Deep, controlled bass, warm low-mids, smooth highs, and relaxed dynamics.")
     raise ValueError(f"unknown profile: {name}")
 
 
@@ -73,11 +75,26 @@ def _modules_for(name: str) -> dict[str, ModuleState]:
             "imaging": ModuleState("imaging", parameters={"width": 1.04}),
             "limiter": ModuleState("limiter", parameters={"ceiling_db": -1.5}),
         }
+    if name == "Chill":
+        return {
+            "preamp": ModuleState("preamp", parameters={"gain_db": 0.0}),
+            "bass": ModuleState("bass", parameters={"gain_db": 1.5, "separation_hz": 85.0}),
+            "eq": ModuleState("eq", parameters={"low_db": 1.0, "mid_db": 1.5, "high_db": -0.5, "presence_db": -0.5}),
+            "compressor": ModuleState("compressor", parameters={"threshold_db": -24.0, "ratio": 1.6}),
+            "saturation": ModuleState("saturation", parameters={"amount": 0.03}),
+            "imaging": ModuleState("imaging", parameters={"width": 1.08}),
+            "limiter": ModuleState("limiter", parameters={"ceiling_db": -2.0}),
+        }
     raise ValueError(f"unknown profile: {name}")
 
 
 def create_default_state(profile: str = "Club") -> AudioState:
-    return AudioState(profile=create_profile_state(profile), modules=_modules_for(profile))
+    state = AudioState(profile=create_profile_state(profile), modules=_modules_for(profile))
+    if profile == "Cinema":
+        state.limiter_ceiling_db = -1.5
+    elif profile == "Chill":
+        state.limiter_ceiling_db = -2.0
+    return state
 
 
 def validate_state(state: AudioState) -> AudioState:

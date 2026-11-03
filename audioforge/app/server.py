@@ -148,11 +148,11 @@ class AudioForgeController:
             return self.payload()
 
     def profile(self, name: str) -> dict[str, Any]:
-        if name not in {"Club", "Cinema"}: raise ValueError("profile must be Club or Cinema")
+        if name not in {"Club", "Cinema", "Chill"}: raise ValueError("profile must be Club, Cinema, or Chill")
         with self._lock:
             old = self.state
             fresh = create_default_state(name)
-            fresh.output_gain_db, fresh.limiter_ceiling_db, fresh.bypass, fresh.muted, fresh.loudness_match = old.output_gain_db, old.limiter_ceiling_db, old.bypass, old.muted, old.loudness_match
+            fresh.output_gain_db, fresh.bypass, fresh.muted, fresh.loudness_match = old.output_gain_db, old.bypass, old.muted, old.loudness_match
             self.state = fresh; self.analyzer.state = fresh
             self._sync_chain()
             return self.payload()

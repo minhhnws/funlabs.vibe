@@ -108,6 +108,24 @@ def test_profile_snapshots_actions_and_validation():
         server.shutdown(); server.server_close(); thread.join(timeout=2)
 
 
+def test_chill_profile_switch_and_ab_snapshot_restore():
+    server = create_server(port=0)
+    conn, thread = client(server)
+    try:
+        response, payload = request(conn, "POST", "/api/profile", {"profile": "Chill"})
+        assert response.status == 200
+        assert payload["state"]["profile"]["name"] == "Chill"
+        assert payload["state"]["modules"]["compressor"]["parameters"]["ratio"] == 1.6
+        assert payload["state"]["limiter_ceiling_db"] == -2.0
+        request(conn, "POST", "/api/action", {"action": "snapshot_a"})
+        request(conn, "POST", "/api/profile", {"profile": "Club"})
+        response, payload = request(conn, "POST", "/api/action", {"action": "compare_ab", "slot": "a"})
+        assert response.status == 200
+        assert payload["state"]["profile"]["name"] == "Chill"
+    finally:
+        server.shutdown(); server.server_close(); thread.join(timeout=2)
+
+
 def test_localhost_cors_and_events():
     server = create_server(port=0)
     conn, thread = client(server)

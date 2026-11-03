@@ -32,6 +32,19 @@ def test_cinema_defaults_are_transparent_and_distinct():
     assert cinema.modules["imaging"].parameters["width"] < club.modules["imaging"].parameters["width"]
 
 
+def test_chill_defaults_are_warm_controlled_and_not_club_loud():
+    chill = create_default_state("Chill")
+    assert chill.profile.name == "Chill"
+    assert chill.profile.description == "Deep, controlled bass, warm low-mids, smooth highs, and relaxed dynamics."
+    assert chill.modules["bass"].parameters == {"gain_db": 1.5, "separation_hz": 85.0}
+    assert chill.modules["eq"].parameters == {"low_db": 1.0, "mid_db": 1.5, "high_db": -0.5, "presence_db": -0.5}
+    assert chill.modules["compressor"].parameters == {"threshold_db": -24.0, "ratio": 1.6}
+    assert chill.modules["saturation"].parameters["amount"] == 0.03
+    assert chill.modules["imaging"].parameters["width"] == 1.08
+    assert chill.modules["limiter"].parameters["ceiling_db"] == -2.0
+    assert chill.limiter_ceiling_db == -2.0
+
+
 def test_validation_bounds_gain_and_limiter_and_surfaces_protection():
     state = create_default_state()
     unsafe = AudioState(**{**state.__dict__, "output_gain_db": 99.0, "limiter_ceiling_db": 3.0})

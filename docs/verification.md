@@ -22,8 +22,8 @@ The automated launch smoke asserted HTTP readiness, the `AUDIOFORGE` UI marker, 
 
 ## Results
 
-- Full suite: **56 passed** in 8.00s (`PYTHONPATH=. uv run --with pytest pytest -q`).
-- New end-to-end smoke coverage: **6 tests** in `audioforge/tests/test_smoke.py` covering safe startup, Club/Cinema switching, isolated A/B snapshots, bypass/mute, missing PipeWire, and preset round-trip/listing.
+- Full suite: **66 passed, 1 skipped** in the current run (`PYTHONPATH=. uv run --with pytest pytest -q`).
+- New end-to-end smoke coverage includes Chill switching, Chill preset restore, and Chill A/B snapshot restoration alongside safe startup, Club/Cinema switching, isolated A/B snapshots, bypass/mute, missing PipeWire, and preset round-trip/listing.
 - Compileall: passed.
 - JavaScript syntax check: passed (`node --check audioforge/ui/app.js`).
 - Launch/HTTP/UI/SIGTERM smoke: passed; no filter-chain config remained in the temporary config directory.
@@ -40,6 +40,8 @@ The read-only diagnostic found:
 - Native path: exercised by `audioforge/scripts/native-pipewire-smoke.py` when run explicitly
 
 The API reports `live` only after the child process and virtual sink graph are verified. Otherwise it retains bypass and reports simulation or fallback.
+
+The Chill defaults currently render as: bass **+1.5 dB @ 90 Hz shelf**, low **+1.0 dB @ 220 Hz**, mid **+1.5 dB @ 1.2 kHz**, presence **-0.5 dB @ 3.2 kHz**, air **-0.5 dB @ 9 kHz**, compressor **-24.0 dB / 1.6:1**, saturation **0.03**, width **1.08**, limiter **-2.0 dB**.
 
 ## Known limitations
 

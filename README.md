@@ -27,6 +27,10 @@ The UI is served by the existing local API/UI assets. Open `http://127.0.0.1:876
 
 The generated order is fixed: preamp → EQ → compressor → saturation → imaging → limiter → output gain. The limiter is always enabled and its ceiling is clamped to the validated safe range. Device names are data fields, not shell fragments.
 
+## Chill profile
+
+**Chill** is the relaxed listening profile: controlled/deeper bass without club loudness, a warm low-mid lift, smooth highs, light compression, moderate stereo width, and a conservative -2.0 dB limiter ceiling. It is a first-class profile across the API, presets/A-B snapshots, UI selector/status, and native PipeWire renderer.
+
 ## Native verification
 
 Run the opt-in smoke; it restores routing in `finally`:

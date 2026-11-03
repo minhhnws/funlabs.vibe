@@ -63,6 +63,22 @@ def test_club_and_cinema_switching_preserves_safe_output():
         close_server(server, thread, conn)
 
 
+def test_chill_switching_preserves_safe_output_and_preset_profile(tmp_path):
+    server, thread, conn = running_server(preset_dir=tmp_path)
+    try:
+        response, payload = request(conn, "POST", "/api/profile", {"profile": "Chill"})
+        assert response.status == 200
+        assert payload["state"]["profile"]["description"].startswith("Deep, controlled bass")
+        request(conn, "POST", "/api/action", {"action": "save_preset", "name": "chill"})
+        request(conn, "POST", "/api/profile", {"profile": "Club"})
+        response, restored = request(conn, "POST", "/api/action", {"action": "load_preset", "name": "chill"})
+        assert response.status == 200
+        assert restored["state"]["profile"]["name"] == "Chill"
+        assert restored["state"]["modules"]["imaging"]["parameters"]["width"] == 1.08
+    finally:
+        close_server(server, thread, conn)
+
+
 def test_ab_snapshots_are_isolated_complete_states():
     server, thread, conn = running_server()
     try:
