@@ -216,11 +216,11 @@ class NativePipeWireHost:
     def stop(self) -> None:
         for input_id, sink_id in reversed(self.moved_inputs):
             try: self._ctl(["pactl", "move-sink-input", input_id, sink_id])
-            except (OSError, RuntimeError, subprocess.SubprocessError): pass
+            except (OSError, RuntimeError, subprocess.SubprocessError, KeyboardInterrupt): pass
         self.moved_inputs.clear()
         if self.original_sink:
             try: self._ctl(["wpctl", "set-default", self.original_sink])
-            except (OSError, RuntimeError, subprocess.SubprocessError): pass
+            except (OSError, RuntimeError, subprocess.SubprocessError, KeyboardInterrupt): pass
         if self.process is not None:
             try:
                 self.process.terminate(); self.process.wait(timeout=2)
