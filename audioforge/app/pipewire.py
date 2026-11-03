@@ -42,7 +42,10 @@ class PipeWireAdapter:
     commands: list[list[str]] = field(default_factory=list)
 
     def run_dump(self) -> Any:
-        argv = list(self.command)
+        return self.run_command(self.command)
+
+    def run_command(self, command: Sequence[str]) -> Any:
+        argv = list(command)
         self.commands.append(argv)
         if self.runner is not None:
             return self.runner(argv)
@@ -76,6 +79,18 @@ def _discovery_error(prefix: str, exc: Exception) -> str:
     return f"{prefix}: {detail}"
 
 
+def _pactl_default_sink(adapter: PipeWireAdapter) -> str | None:
+    result = adapter.run_command(("pactl", "get-default-sink"))
+    if hasattr(result, "stdout"):
+        result = result.stdout
+    if isinstance(result, bytes):
+        result = result.decode("utf-8")
+    if not isinstance(result, str):
+        return None
+    name = result.strip().splitlines()[0] if result.strip() else ""
+    return name or None
+
+
 def discover_default_sink(adapter: PipeWireAdapter | None = None) -> SinkInfo:
     adapter = adapter or PipeWireAdapter()
     try:
@@ -90,6 +105,12 @@ def discover_default_sink(adapter: PipeWireAdapter | None = None) -> SinkInfo:
             if media_class in {"Audio/Sink", "Audio/Duplex"}:
                 sinks.append((item, props))
         chosen = next((pair for pair in sinks if pair[1].get("node.name") == default_name), None)
+        if chosen is None:
+            try:
+                pactl_name = _pactl_default_sink(adapter)
+            except (FileNotFoundError, subprocess.CalledProcessError, OSError, ValueError, TypeError):
+                pactl_name = None
+            chosen = next((pair for pair in sinks if pair[1].get("node.name") == pactl_name), None)
         if chosen is None and len(sinks) == 1:
             chosen = sinks[0]
         if chosen is None:

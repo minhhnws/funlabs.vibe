@@ -32,6 +32,25 @@ def test_valid_pw_dump_discovers_default_sink_without_host_mutation():
     assert adapter.commands == [["pw-dump"]]
 
 
+def test_pactl_default_sink_is_used_when_pipewire_metadata_is_absent():
+    payload = json.loads(dump_payload())
+    payload = [item for item in payload if item["info"]["props"].get("metadata.name") != "default"]
+
+    def runner(argv):
+        if argv == ["pw-dump"]:
+            return json.dumps(payload)
+        if argv == ["pactl", "get-default-sink"]:
+            return subprocess.CompletedProcess(argv, 0, "alsa_output.pci-1\n", "")
+        raise AssertionError(argv)
+
+    adapter = PipeWireAdapter(runner=runner)
+    sink = discover_default_sink(adapter)
+
+    assert sink.available is True
+    assert sink.name == "alsa_output.pci-1"
+    assert adapter.commands == [["pw-dump"], ["pactl", "get-default-sink"]]
+
+
 def test_missing_pw_dump_is_unavailable():
     def missing(_argv):
         raise FileNotFoundError("pw-dump")
