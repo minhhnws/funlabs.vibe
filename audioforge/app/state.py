@@ -95,10 +95,22 @@ def validate_state(state: AudioState) -> AudioState:
     checked = deepcopy(state)
     checked.output_gain_db = gain
     checked.limiter_ceiling_db = ceiling
+    for module_name, module in checked.modules.items():
+        if "gain_db" in module.parameters:
+            module_gain = min(MAX_OUTPUT_GAIN_DB, max(MIN_OUTPUT_GAIN_DB, float(module.parameters["gain_db"])))
+            if module_gain != module.parameters["gain_db"]:
+                violations.append(f"{module_name} gain clamped")
+            module.parameters["gain_db"] = module_gain
+    limiter = checked.modules.setdefault("limiter", ModuleState("limiter", parameters={"ceiling_db": ceiling}))
+    limiter.enabled = True
+    module_ceiling = min(
+        MAX_LIMITER_CEILING_DB,
+        max(MIN_LIMITER_CEILING_DB, float(limiter.parameters.get("ceiling_db", ceiling))),
+    )
+    if module_ceiling != limiter.parameters.get("ceiling_db", ceiling):
+        violations.append("limiter module ceiling clamped")
+    limiter.parameters["ceiling_db"] = module_ceiling
     checked.protection = "; ".join(violations) if violations else state.protection
-    checked.modules.setdefault("limiter", ModuleState("limiter", parameters={"ceiling_db": ceiling}))
-    checked.modules["limiter"].enabled = True
-    checked.modules["limiter"].parameters["ceiling_db"] = ceiling
     return checked
 
 

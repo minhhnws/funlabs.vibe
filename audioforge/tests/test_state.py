@@ -39,6 +39,22 @@ def test_validation_bounds_gain_and_limiter_and_surfaces_protection():
     assert checked.protection is not None
 
 
+def test_validation_bounds_nested_gain_and_limiter_and_reports_protection():
+    state = create_default_state()
+    state.modules["preamp"].parameters["gain_db"] = 99.0
+    state.modules["bass"].parameters["gain_db"] = -99.0
+    state.modules["limiter"].parameters["ceiling_db"] = 3.0
+
+    checked = validate_state(state)
+
+    assert checked.modules["preamp"].parameters["gain_db"] == 12.0
+    assert checked.modules["bass"].parameters["gain_db"] == -24.0
+    assert checked.modules["limiter"].parameters["ceiling_db"] == -0.1
+    assert checked.protection == (
+        "preamp gain clamped; bass gain clamped; limiter module ceiling clamped"
+    )
+
+
 def test_ab_snapshots_are_deeply_isolated():
     state = create_default_state()
     snapshots = SnapshotState()

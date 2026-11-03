@@ -25,3 +25,20 @@ Implemented the AudioForge core state, safety validation, local versioned preset
 
 - The repository's base Python environment has no `pytest` or `pip`; verification used the available `uv run --with pytest` path.
 - PipeWire integration and runtime DSP are intentionally outside Task 1.
+
+## Reviewer fix: nested safety validation
+
+### Outcome
+Updated `validate_state()` to clamp nested module `gain_db` values and the limiter module's `ceiling_db`, while reporting each nested clamp through `protection`. Existing safe top-level bounds and limiter enforcement remain intact.
+
+### Tests run
+
+- `PYTHONPATH=. uv run --with pytest pytest audioforge/tests/test_state.py -q` — **6 passed**.
+- `PYTHONPATH=. uv run --with pytest pytest audioforge/tests/test_state.py audioforge/tests/test_presets.py audioforge/tests/test_analyzer.py -q` — **10 passed**.
+- `PYTHONPATH=. uv run --with pytest pytest -q` — **10 passed**.
+- `python3 -m compileall -q audioforge` — passed.
+
+### Files changed
+
+- `audioforge/app/state.py` — clamp nested gains and limiter module ceiling; report nested protection violations.
+- `audioforge/tests/test_state.py` — add regression coverage for nested gain/limiter bounds and protection reporting.
