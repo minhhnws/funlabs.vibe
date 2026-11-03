@@ -1,0 +1,21 @@
+[Unit]
+Description=AudioForge realtime PipeWire audio processor
+Documentation=https://github.com/minhhnws/funlabs.vibe
+After=pipewire.service wireplumber.service
+Requires=pipewire.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/audioforge
+ExecStart=/usr/bin/python3 %h/audioforge/audioforge/scripts/audioforge.py --host 127.0.0.1 --port 8765 --diagnostic
+Environment=PIPEWIRE_REMOTE=pipewire-0
+Environment=AUDIOFORGE_NATIVE=1
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGINT
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target
