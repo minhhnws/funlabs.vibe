@@ -6,7 +6,7 @@ AudioForge is a localhost control surface for a PipeWire playback processor. It 
 
 - Linux with Python 3.11+ and `uv` (or a compatible Python environment)
 - `pw-dump` for read-only sink/channel discovery
-- Optional future integration: a separately validated native PipeWire adapter
+- `pipewire`, `wpctl`, and `pactl` for native system-wide routing
 - `curl` for the launch readiness check; an installed desktop opener is optional
 
 Run from the checkout:
@@ -20,12 +20,20 @@ The UI is served by the existing local API/UI assets. Open `http://127.0.0.1:876
 
 ## Modes and safety
 
-- **Simulation:** structured filter-chain JSON is generated for inspection, but no PipeWire node is claimed or created.
-- **Live:** unavailable in this milestone. The generated JSON is an application inspection artifact, not a PipeWire factory configuration, and AudioForge does not invoke `pw-cli create-node` from it. No environment variable can opt into live mode. Live mode may only be added by supplying a separately validated adapter that translates the configuration into a supported native API, verifies the returned object in the graph, and owns teardown. Until then, bypass remains enabled.
-- **Fallback:** missing `pw-dump`, a disappearing sink, an unsupported module, or a failed node command keeps output bypassed and leaves the direct route preferred.
-- **Stop:** Ctrl-C or termination destroys the owned node when present, removes the generated config, and restores the direct/bypassed route. Never kill `pipewire` or `wireplumber` as application cleanup.
+- **Simulation:** `--disable-native` or `AUDIOFORGE_NATIVE=0` keeps the JSON inspection path and bypass enabled.
+- **Live:** the launcher writes a native PipeWire factory `.conf`, starts an owned `pipewire -c` child, verifies the virtual sink graph, makes it default, and moves existing sink-inputs to it.
+- **Fallback:** missing tools, invalid graph verification, or failed routing keeps bypass enabled and reports `FALLBACK / Direct output`.
+- **Stop:** Ctrl-C or termination moves tracked sink-inputs back, restores the captured original default sink, terminates only the owned child, and removes only the owned `.conf`. Never kill the session PipeWire or WirePlumber process.
 
 The generated order is fixed: preamp → EQ → compressor → saturation → imaging → limiter → output gain. The limiter is always enabled and its ceiling is clamped to the validated safe range. Device names are data fields, not shell fragments.
+
+## Native verification
+
+Run the opt-in smoke; it restores routing in `finally`:
+
+```bash
+PYTHONPATH=. python3 audioforge/scripts/native-pipewire-smoke.py
+```
 
 ## Current limits
 

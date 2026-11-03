@@ -13,7 +13,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-"$PYTHON" "$ROOT/audioforge/scripts/audioforge.py" --port "$PORT" --diagnostic &
+"$PYTHON" "$ROOT/audioforge/scripts/audioforge.py" --port "$PORT" --diagnostic ${AUDIOFORGE_DISABLE_NATIVE:+--disable-native} &
 API_PID=$!
 READY=0
 for _ in {1..30}; do

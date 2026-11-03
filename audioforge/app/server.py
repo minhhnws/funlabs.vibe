@@ -71,7 +71,7 @@ class AudioForgeController:
         self.status = self._status_from_engine(start_engine(self.state, chain_manager=chain_manager))
 
     def _status_from_engine(self, status: EngineStatus) -> dict[str, Any]:
-        if status.mode == "fallback":
+        if status.mode == "fallback" and self.chain_manager is not None and getattr(self.chain_manager, "mode", "fallback") == "fallback":
             mode = "fallback"
             label = "FALLBACK / Direct output"
         elif status.mode == "live" and status.filter_chain_available:

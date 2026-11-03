@@ -88,7 +88,7 @@ class FilterChainManager:
         self.engine_supported = engine_supported
         self.config_path: Path | None = None
         self.node_id: str | None = None
-        self.mode = "direct-fallback"
+        self.mode = "simulation"
         self.last_error: str | None = None
 
     @staticmethod
@@ -117,6 +117,13 @@ class FilterChainManager:
 
     def start(self, state: AudioState, *, sink_name: str | None = None) -> Path:
         self.stop()
+        if self.adapter is not None and hasattr(self.adapter, "start"):
+            path = self.adapter.start(state, sink_name=sink_name)
+            self.config_path = Path(path) if path else None
+            self.mode = getattr(self.adapter, "mode", "fallback")
+            self.node_id = getattr(self.adapter, "virtual_id", None)
+            self.last_error = getattr(self.adapter, "last_error", None)
+            return self.config_path or self.config_dir / "audioforge-native.conf"
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.config_path = self.config_dir / "audioforge-filter-chain.json"
         self.config_path.write_text(render_filter_chain_conf(state, sink_name=sink_name), encoding="utf-8")
@@ -148,6 +155,12 @@ class FilterChainManager:
         return config_path
 
     def stop(self) -> None:
+        if self.adapter is not None and hasattr(self.adapter, "start"):
+            self.adapter.stop()
+            self.node_id = None
+            self.config_path = None
+            self.mode = "direct-fallback"
+            return
         if self.node_id:
             try:
                 if self.adapter is not None:

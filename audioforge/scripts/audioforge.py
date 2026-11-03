@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import signal
 import subprocess
 import sys
@@ -13,6 +14,7 @@ sys.path.insert(0, str(ROOT))
 
 from audioforge.app.engine import stop_engine  # noqa: E402
 from audioforge.app.filter_chain import FilterChainManager  # noqa: E402
+from audioforge.app.native import NativePipeWireHost  # noqa: E402
 from audioforge.app.server import AudioForgeController, create_server  # noqa: E402
 
 
@@ -22,15 +24,15 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--config-dir", default=str(Path.home() / ".cache" / "audioforge"))
     parser.add_argument("--diagnostic", action="store_true")
+    parser.add_argument("--disable-native", action="store_true")
     args = parser.parse_args()
 
     if args.diagnostic:
         check = ROOT / "audioforge" / "scripts" / "audioforge-pw-check.py"
         subprocess.run([sys.executable, str(check)], check=False)
 
-    # Native live mode is intentionally unavailable until a validated adapter
-    # translates the application JSON into a supported PipeWire API call.
-    manager = FilterChainManager(args.config_dir)
+    native = None if args.disable_native or os.environ.get("AUDIOFORGE_NATIVE", "1") == "0" else NativePipeWireHost(args.config_dir)
+    manager = FilterChainManager(args.config_dir, adapter=native)
     controller = AudioForgeController(chain_manager=manager)
     server = create_server(args.host, args.port, controller=controller)
     print(f"AudioForge API listening on http://{args.host}:{args.port}", flush=True)

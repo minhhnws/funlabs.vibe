@@ -37,13 +37,13 @@ The read-only diagnostic found:
 - Sample rate: `48000`
 - Channels: `2`
 - Layout: `stereo`
-- Real filter-chain path: unavailable (discovery only)
+- Native path: exercised by `audioforge/scripts/native-pipewire-smoke.py` when run explicitly
 
-Accordingly, AudioForge reports simulation/unavailable and retains `bypass=true`; discovery availability is not treated as proof of a validated processing node.
+The API reports `live` only after the child process and virtual sink graph are verified. Otherwise it retains bypass and reports simulation or fallback.
 
 ## Known limitations
 
-- The native PipeWire filter-chain adapter is not implemented. No real processing node is created or claimed.
+- Native graph verification requires the host PipeWire tools and a working filter-chain module.
 - Simulation meters are deterministic analyzer output, not proof of system-wide realtime processing.
 - Stereo is the primary supported chain; multichannel film processing and explicit downmix behavior remain future work.
 - Routing is limited to the discovered default sink; per-application routing is not implemented.
