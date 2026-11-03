@@ -18,3 +18,16 @@ def test_analyzer_counter_is_monotonic():
     analyzer = Analyzer(create_default_state())
     assert analyzer.next_frame().frame_index == 0
     assert analyzer.next_frame().frame_index == 1
+
+
+def test_simulation_loudness_match_normalizes_comparison_loudness():
+    louder = create_default_state()
+    louder.output_gain_db = 12.0
+    louder.loudness_match = True
+    quieter = create_default_state()
+    quieter.output_gain_db = -12.0
+    quieter.loudness_match = True
+    louder_frame = generate_frame(louder)
+    quieter_frame = generate_frame(quieter)
+    assert louder_frame.loudness_lufs == quieter_frame.loudness_lufs == -18.0
+    assert louder_frame.true_peak_db == quieter_frame.true_peak_db == -12.0

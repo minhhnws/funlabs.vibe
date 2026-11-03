@@ -7,6 +7,8 @@ from audioforge.app.state import (
     ValidationError,
     create_default_state,
     create_profile_state,
+    state_from_dict,
+    state_to_dict,
     validate_state,
 )
 
@@ -64,6 +66,17 @@ def test_ab_snapshots_are_deeply_isolated():
     restored = snapshots.restore_a()
     restored.modules["bass"].parameters["gain_db"] = -9.0
     assert snapshots.a.modules["bass"].parameters["gain_db"] != -9.0
+
+
+def test_loudness_match_is_part_of_serialized_state_and_snapshots():
+    state = create_default_state()
+    state.loudness_match = True
+    restored = state_from_dict(state_to_dict(state))
+    assert restored.loudness_match is True
+    snapshots = SnapshotState()
+    snapshots.store_a(state)
+    state.loudness_match = False
+    assert snapshots.restore_a().loudness_match is True
 
 
 def test_unknown_profile_is_rejected():

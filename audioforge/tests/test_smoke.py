@@ -109,11 +109,13 @@ def test_preset_round_trip_restores_state_and_is_listed(tmp_path):
     server, thread, conn = running_server(preset_dir=tmp_path)
     try:
         request(conn, "POST", "/api/action", {"action": "set_gain", "value": 4})
+        request(conn, "POST", "/api/action", {"action": "loudness_match", "value": True})
         response, saved = request(conn, "POST", "/api/action", {"action": "save_preset", "name": "smoke"})
         assert response.status == 200
         request(conn, "POST", "/api/action", {"action": "set_gain", "value": -4})
         response, loaded = request(conn, "POST", "/api/action", {"action": "load_preset", "name": "smoke"})
         assert response.status == 200 and loaded["state"]["output_gain_db"] == 4.0
+        assert loaded["state"]["loudness_match"] is True
         response, presets = request(conn, "GET", "/api/presets")
         assert response.status == 200 and presets["presets"] == ["smoke"]
         assert saved["state"]["output_gain_db"] == 4.0

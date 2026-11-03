@@ -27,7 +27,9 @@ def generate_frame(state: AudioState, frame_index: int = 0) -> AnalyzerFrame:
     spectrum = tuple(round(-48.0 + profile_bias + 18.0 * math.sin((i + 1) * 0.37 + frame_index * 0.11) ** 2, 6) for i in range(32))
     left = tuple(round(0.42 * math.sin((i + frame_index * 3) * 0.21), 6) for i in range(64))
     right = tuple(round(0.42 * math.sin((i + frame_index * 3) * 0.21 + 0.08), 6) for i in range(64))
-    vu = max(-60.0, min(0.0, -18.0 + profile_bias + gain))
+    # Simulation-only deterministic normalization; measured program loudness
+    # is required for realtime matching and is intentionally not claimed.
+    vu = -15.0 if state.loudness_match else max(-60.0, min(0.0, -18.0 + profile_bias + gain))
     true_peak = max(-120.0, min(0.0, vu + 3.0))
     return AnalyzerFrame(frame_index, spectrum, left, right, round(vu, 6), round(vu, 6), round(vu - 3.0, 6), round(true_peak, 6))
 

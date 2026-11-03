@@ -85,6 +85,15 @@ def test_profile_snapshots_actions_and_validation():
         response, payload = request(conn, "POST", "/api/action", {"action": "compare_ab", "slot": "a"})
         assert response.status == 200
         assert payload["state"]["output_gain_db"] == 0.0
+        response, payload = request(conn, "POST", "/api/action", {"action": "loudness_match", "value": True})
+        assert response.status == 200
+        assert payload["state"]["loudness_match"] is True
+        response, payload = request(conn, "GET", "/api/state")
+        assert payload["state"]["loudness_match"] is True
+        request(conn, "POST", "/api/action", {"action": "snapshot_a"})
+        request(conn, "POST", "/api/action", {"action": "loudness_match", "value": False})
+        response, payload = request(conn, "POST", "/api/action", {"action": "compare_ab", "slot": "a"})
+        assert payload["state"]["loudness_match"] is True
 
         response, payload = request(conn, "POST", "/api/action", {"action": "set_mute", "value": True})
         assert response.status == 200 and payload["state"]["muted"] is True
@@ -152,6 +161,7 @@ def test_controls_are_bounded_and_reject_wrong_types_and_slots():
             {"action": "set_gain", "value": "2"},
             {"action": "set_eq", "parameters": {"unknown": 1}},
             {"action": "compare_ab", "slot": "c"},
+            {"action": "loudness_match", "value": "true"},
         ]:
             response, payload = request(conn, "POST", "/api/action", bad)
             assert response.status == 400, bad

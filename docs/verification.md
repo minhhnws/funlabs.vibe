@@ -22,7 +22,7 @@ The automated launch smoke asserted HTTP readiness, the `AUDIOFORGE` UI marker, 
 
 ## Results
 
-- Full suite: **54 passed** in 7.99s (`PYTHONPATH=. uv run --with pytest pytest -q`).
+- Full suite: **56 passed** in 8.00s (`PYTHONPATH=. uv run --with pytest pytest -q`).
 - New end-to-end smoke coverage: **6 tests** in `audioforge/tests/test_smoke.py` covering safe startup, Club/Cinema switching, isolated A/B snapshots, bypass/mute, missing PipeWire, and preset round-trip/listing.
 - Compileall: passed.
 - JavaScript syntax check: passed (`node --check audioforge/ui/app.js`).

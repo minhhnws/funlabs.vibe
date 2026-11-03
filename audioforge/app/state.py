@@ -37,6 +37,7 @@ class AudioState:
     latency_ms: float = 0.0
     sample_rate: int = 48000
     channel_layout: str = "stereo"
+    loudness_match: bool = False
 
 
 class ValidationError(ValueError):
@@ -176,10 +177,14 @@ def state_to_dict(state: AudioState) -> dict[str, Any]:
         "latency_ms": state.latency_ms,
         "sample_rate": state.sample_rate,
         "channel_layout": state.channel_layout,
+        "loudness_match": state.loudness_match,
     }
 
 
 def state_from_dict(data: dict[str, Any]) -> AudioState:
     profile_data = data["profile"]
     modules = {k: ModuleState(v["name"], v["enabled"], dict(v["parameters"])) for k, v in data["modules"].items()}
-    return AudioState(ProfileState(profile_data["name"], profile_data["description"]), modules, **{k: data[k] for k in ("output_gain_db", "limiter_ceiling_db", "bypass", "muted", "protection", "routing", "latency_ms", "sample_rate", "channel_layout")})
+    fields = ("output_gain_db", "limiter_ceiling_db", "bypass", "muted", "protection", "routing", "latency_ms", "sample_rate", "channel_layout")
+    values = {key: data[key] for key in fields}
+    values["loudness_match"] = data.get("loudness_match", False)
+    return AudioState(ProfileState(profile_data["name"], profile_data["description"]), modules, **values)

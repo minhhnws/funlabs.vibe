@@ -123,10 +123,10 @@ class AudioForgeController:
     def update(self, changes: dict[str, Any]) -> dict[str, Any]:
         with self._lock:
             if not isinstance(changes, dict): raise ValueError("state payload must be an object")
-            allowed = {"output_gain_db", "limiter_ceiling_db", "bypass", "muted", "routing", "latency_ms", "sample_rate", "channel_layout"}
+            allowed = {"output_gain_db", "limiter_ceiling_db", "bypass", "muted", "loudness_match", "routing", "latency_ms", "sample_rate", "channel_layout"}
             for key, value in changes.items():
                 if key in allowed:
-                    if key in {"bypass", "muted"}: value = _boolean(value, key)
+                    if key in {"bypass", "muted", "loudness_match"}: value = _boolean(value, key)
                     elif key in {"output_gain_db", "limiter_ceiling_db", "latency_ms", "sample_rate"}: value = _number(value, key)
                     elif key in {"routing", "channel_layout"} and not isinstance(value, str): raise ValueError(f"{key} must be a string")
                     setattr(self.state, key, value)
@@ -152,7 +152,7 @@ class AudioForgeController:
         with self._lock:
             old = self.state
             fresh = create_default_state(name)
-            fresh.output_gain_db, fresh.limiter_ceiling_db, fresh.bypass, fresh.muted = old.output_gain_db, old.limiter_ceiling_db, old.bypass, old.muted
+            fresh.output_gain_db, fresh.limiter_ceiling_db, fresh.bypass, fresh.muted, fresh.loudness_match = old.output_gain_db, old.limiter_ceiling_db, old.bypass, old.muted, old.loudness_match
             self.state = fresh; self.analyzer.state = fresh
             self._sync_chain()
             return self.payload()
@@ -178,7 +178,8 @@ class AudioForgeController:
         if action == "set_dynamics": return self.update({"modules": {"compressor": {"parameters": _parameters(data.get("parameters"), _DYNAMICS_PARAMS, "dynamics")}}})
         if action == "set_width": return self.update({"modules": {"imaging": {"parameters": {"width": _bounded(data["value"], "width", 0.5, 1.5)}}}})
         if action == "loudness_match":
-            self.snapshots.loudness_match = _boolean(data.get("value", True), "loudness_match"); return self.payload()
+            value = _boolean(data.get("value", True), "loudness_match")
+            return self.update({"loudness_match": value})
         if action in {"snapshot_a", "snapshot_b"}:
             (self.snapshots.store_a if action.endswith("a") else self.snapshots.store_b)(self.state); return self.payload()
         if action == "compare_ab":
