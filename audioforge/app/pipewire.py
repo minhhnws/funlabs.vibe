@@ -70,6 +70,12 @@ def _nodes(adapter: PipeWireAdapter) -> list[dict[str, Any]]:
     return adapter.dump()
 
 
+def _discovery_error(prefix: str, exc: Exception) -> str:
+    """Keep subprocess diagnostics visible while preserving a stable prefix."""
+    detail = getattr(exc, "stderr", None) or str(exc)
+    return f"{prefix}: {detail}"
+
+
 def discover_default_sink(adapter: PipeWireAdapter | None = None) -> SinkInfo:
     adapter = adapter or PipeWireAdapter()
     try:
@@ -101,8 +107,8 @@ def discover_default_sink(adapter: PipeWireAdapter | None = None) -> SinkInfo:
         )
     except FileNotFoundError as exc:
         return SinkInfo(status="unavailable", reason=f"pw-dump unavailable: {exc}")
-    except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
-        return SinkInfo(status="unavailable", reason=f"PipeWire discovery failed: {exc}")
+    except (subprocess.CalledProcessError, OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+        return SinkInfo(status="unavailable", reason=_discovery_error("PipeWire discovery failed", exc))
 
 
 def discover_channel_layout(adapter: PipeWireAdapter | None = None) -> ChannelLayout:
@@ -112,8 +118,10 @@ def discover_channel_layout(adapter: PipeWireAdapter | None = None) -> ChannelLa
         if not sink.available:
             return ChannelLayout(status=sink.status, reason=sink.reason)
         items = _nodes(adapter)
-        props = next((_props(item) for item in items if _props(item).get("node.name") == sink.name), {})
         sink_item = next((item for item in items if _props(item).get("node.name") == sink.name), {})
+        if not sink_item:
+            return ChannelLayout(status="fallback", reason="default PipeWire sink disappeared during layout discovery")
+        props = _props(sink_item)
         params = (sink_item.get("info") or {}).get("params") or {}
         formats = params.get("Format", []) if isinstance(params, dict) else []
         fmt = formats[0] if formats and isinstance(formats[0], dict) else {}
@@ -131,8 +139,8 @@ def discover_channel_layout(adapter: PipeWireAdapter | None = None) -> ChannelLa
             name = f"{channels}-channel" if channels else "unknown"
         return ChannelLayout(
             name=name, channels=channels, positions=positions,
-            downmix_required=channels == 2, stereo_widening=channels == 2,
+            downmix_required=channels == 2, stereo_widening=False,
             available=True, status="available",
         )
-    except (FileNotFoundError, OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
-        return ChannelLayout(status="unavailable", reason=f"PipeWire layout discovery failed: {exc}")
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+        return ChannelLayout(status="unavailable", reason=_discovery_error("PipeWire layout discovery failed", exc))

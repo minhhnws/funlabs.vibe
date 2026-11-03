@@ -1,4 +1,5 @@
 import json
+import subprocess
 
 from audioforge.app.pipewire import PipeWireAdapter, discover_channel_layout, discover_default_sink
 
@@ -47,6 +48,7 @@ def test_channel_layout_reads_stereo_metadata():
     assert layout.channels == 2
     assert layout.name == "stereo"
     assert layout.downmix_required is True
+    assert layout.stereo_widening is False
 
 
 def test_channel_layout_preserves_5_1_and_disables_stereo_widening():
@@ -63,3 +65,22 @@ def test_disappearing_sink_reports_fallback():
     result = discover_default_sink(adapter)
     assert result.available is False
     assert result.status == "fallback"
+
+
+def test_sink_disappearing_during_layout_resolution_reports_fallback():
+    payloads = iter([dump_payload(), json.dumps([])])
+    adapter = PipeWireAdapter(runner=lambda _argv: next(payloads))
+    result = discover_channel_layout(adapter)
+    assert result.available is False
+    assert result.status == "fallback"
+    assert "disappeared" in result.reason
+
+
+def test_nonzero_pw_dump_exit_is_unavailable():
+    def failed(_argv):
+        raise subprocess.CalledProcessError(1, ["pw-dump"], stderr="permission denied")
+
+    result = discover_default_sink(PipeWireAdapter(runner=failed))
+    assert result.available is False
+    assert result.status == "unavailable"
+    assert "permission denied" in result.reason

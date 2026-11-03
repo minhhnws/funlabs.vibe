@@ -41,3 +41,17 @@ Implemented the Task 2 PipeWire discovery and safe engine lifecycle. Discovery i
 
 - Task 2 provides discovery and lifecycle status only; it does not create or own a real filter-chain. The diagnostic reports this truthfully.
 - The current implementation treats a stereo output as requiring the documented downmix stage before stereo processing; no actual audio conversion is performed until the later filter-chain task.
+
+## Fix round 1 — review findings
+
+- Stereo layout discovery and engine status now keep `stereo_widening` disabled; the regression test asserts the corrected behavior.
+- Layout resolution verifies that the sink is still present in the second snapshot and returns an explicit `fallback` status if it disappeared, preventing stale sink metadata from being reported as available.
+- `subprocess.CalledProcessError` is handled by direct discovery and layout discovery. Non-zero `pw-dump` exits now return visible `unavailable`/fallback statuses with stderr diagnostics instead of propagating tracebacks.
+- Added regression tests for stereo widening, mid-resolution sink disappearance, and non-zero `pw-dump` exits.
+
+### Fix verification
+
+- Focused suite: `14 passed` via `PYTHONPATH=. uv run --with pytest pytest audioforge/tests/test_pipewire.py audioforge/tests/test_engine.py -q`.
+- Full suite: `24 passed` via `PYTHONPATH=. uv run --with pytest pytest -q`.
+- Compile check: `uv run --with pytest python -m compileall -q audioforge`.
+- Diagnostic: `audioforge-pw-check.py` exited `0`; PipeWire available, default sink `alsa_output.pci-0000_00_1f.3.hdmi-stereo`, 48000 Hz stereo; filter-chain path unavailable (discovery only).
