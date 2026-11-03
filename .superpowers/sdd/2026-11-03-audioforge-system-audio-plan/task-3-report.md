@@ -42,3 +42,18 @@ The UI includes graphite styling, Club/Cinema profile accents, chain module rail
 
 - Task 2 exposes PipeWire discovery/lifecycle only and explicitly does not own a real filter-chain; UI/API therefore remain truthful simulation/fallback rather than claiming real processing.
 - The SSE endpoint emits a current status/analyzer snapshot and closes; clients can reconnect for updates.
+
+## Fix round 1 — Important findings
+
+- Added visible EQ low/mid/high band controls and dynamics threshold/ratio controls with wired API handlers; added bounded EQ, dynamics, and stereo-width validation.
+- Made bypass/mute/protection status explicit in every state payload and rendered dynamically in the UI footer. `set_bypass(false)` retains safe bypass when no real filter chain is available and remains visibly `SIMULATION / PipeWire unavailable`.
+- Added validated localhost CORS preflight responses, explicit `api_version` and `state_schema_version`, strict booleans/numbers/module parameter names, and exact A/B snapshot slot validation.
+- Expanded focused coverage for schema/CORS, bounds, invalid types/parameters/slots, preset round trips, and simulation status transitions.
+
+## Fix verification
+
+- Focused server suite: **6 passed** (`PYTHONPATH=. uv run --with pytest pytest audioforge/tests/test_server.py -q`).
+- Full suite: **30 passed** (`PYTHONPATH=. uv run --with pytest pytest -q`).
+- Compile check: `PYTHONPATH=. uv run --with pytest python -m compileall -q audioforge` passed.
+- Static UI smoke check and `node --check audioforge/ui/app.js` passed.
+- `git diff --check` passed.

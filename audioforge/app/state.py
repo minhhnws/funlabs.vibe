@@ -56,7 +56,7 @@ def _modules_for(name: str) -> dict[str, ModuleState]:
         return {
             "preamp": ModuleState("preamp", parameters={"gain_db": 0.0}),
             "bass": ModuleState("bass", parameters={"gain_db": 3.0, "separation_hz": 100.0}),
-            "eq": ModuleState("eq", parameters={"presence_db": 0.0}),
+            "eq": ModuleState("eq", parameters={"low_db": 0.0, "mid_db": 0.0, "high_db": 0.0, "presence_db": 0.0}),
             "compressor": ModuleState("compressor", parameters={"threshold_db": -18.0, "ratio": 2.5}),
             "saturation": ModuleState("saturation", parameters={"amount": 0.12}),
             "imaging": ModuleState("imaging", parameters={"width": 1.12}),
@@ -66,7 +66,7 @@ def _modules_for(name: str) -> dict[str, ModuleState]:
         return {
             "preamp": ModuleState("preamp", parameters={"gain_db": 0.0}),
             "bass": ModuleState("bass", parameters={"gain_db": 1.0, "separation_hz": 90.0}),
-            "eq": ModuleState("eq", parameters={"presence_db": 1.5}),
+            "eq": ModuleState("eq", parameters={"low_db": 0.0, "mid_db": 1.0, "high_db": 1.5, "presence_db": 1.5}),
             "compressor": ModuleState("compressor", parameters={"threshold_db": -24.0, "ratio": 1.4}),
             "saturation": ModuleState("saturation", parameters={"amount": 0.02}),
             "imaging": ModuleState("imaging", parameters={"width": 1.04}),
@@ -101,6 +101,32 @@ def validate_state(state: AudioState) -> AudioState:
             if module_gain != module.parameters["gain_db"]:
                 violations.append(f"{module_name} gain clamped")
             module.parameters["gain_db"] = module_gain
+    eq = checked.modules.get("eq")
+    if eq:
+        for key in ("low_db", "mid_db", "high_db", "presence_db"):
+            if key in eq.parameters:
+                value = min(12.0, max(-12.0, float(eq.parameters[key])))
+                if value != eq.parameters[key]:
+                    violations.append(f"eq {key} clamped")
+                eq.parameters[key] = value
+    compressor = checked.modules.get("compressor")
+    if compressor:
+        if "threshold_db" in compressor.parameters:
+            value = min(0.0, max(-60.0, float(compressor.parameters["threshold_db"])))
+            if value != compressor.parameters["threshold_db"]:
+                violations.append("compressor threshold clamped")
+            compressor.parameters["threshold_db"] = value
+        if "ratio" in compressor.parameters:
+            value = min(20.0, max(1.0, float(compressor.parameters["ratio"])))
+            if value != compressor.parameters["ratio"]:
+                violations.append("compressor ratio clamped")
+            compressor.parameters["ratio"] = value
+    imaging = checked.modules.get("imaging")
+    if imaging and "width" in imaging.parameters:
+        value = min(1.5, max(0.5, float(imaging.parameters["width"])))
+        if value != imaging.parameters["width"]:
+            violations.append("imaging width clamped")
+        imaging.parameters["width"] = value
     limiter = checked.modules.setdefault("limiter", ModuleState("limiter", parameters={"ceiling_db": ceiling}))
     limiter.enabled = True
     module_ceiling = min(
