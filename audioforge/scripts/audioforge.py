@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import signal
 import subprocess
 import sys
@@ -29,8 +28,9 @@ def main() -> int:
         check = ROOT / "audioforge" / "scripts" / "audioforge-pw-check.py"
         subprocess.run([sys.executable, str(check)], check=False)
 
-    supported = os.environ.get("AUDIOFORGE_PIPEWIRE_FILTER_CHAIN") == "1"
-    manager = FilterChainManager(args.config_dir, engine_supported=supported)
+    # Native live mode is intentionally unavailable until a validated adapter
+    # translates the application JSON into a supported PipeWire API call.
+    manager = FilterChainManager(args.config_dir)
     controller = AudioForgeController(chain_manager=manager)
     server = create_server(args.host, args.port, controller=controller)
     print(f"AudioForge API listening on http://{args.host}:{args.port}", flush=True)

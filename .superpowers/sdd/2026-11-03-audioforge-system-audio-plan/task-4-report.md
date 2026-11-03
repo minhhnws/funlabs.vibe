@@ -68,3 +68,18 @@ Passing unit tests and compilation are insufficient for this gate because the ac
 - `python3 -m compileall -q audioforge` -> **pass**.
 - `PYTHONPATH=. python3 audioforge/scripts/audioforge-pw-check.py` -> PipeWire available; real filter-chain path unavailable (discovery only).
 - Launch/stop smoke with HTTP readiness and direct `SIGTERM` -> process exited 0 and generated config was removed.
+
+## Fix round 2
+
+- Removed the unproven native `pw-cli create-node ... <app-json>` path from the production lifecycle. Live mode now requires an explicitly supplied validated adapter implementing create, graph verification, and owned destroy; the normal launcher supplies none and remains simulation/bypassed.
+- Creation stderr, nonzero exit, malformed/missing IDs, and graph-verification failures now remove the owned generated config immediately, retain fallback, and never destroy an unverified node. Engine failure-matrix tests assert bypass retention and cleanup; controller coverage continues to assert unavailable chains cannot clear bypass.
+- README and the config template now state that the generated JSON is an inspection/simulation artifact, not a PipeWire factory file. The UI launcher now fails and terminates the child if readiness expires.
+
+### Fix round 2 verification
+
+- `PYTHONPATH=. uv run --with pytest pytest audioforge/tests/test_filter_chain.py audioforge/tests/test_engine.py audioforge/tests/test_server.py -q` -> **28 passed**.
+- `PYTHONPATH=. uv run --with pytest pytest -q` -> **48 passed**.
+- `python3 -m compileall -q audioforge` -> **pass**.
+- `PYTHONPATH=. python3 audioforge/scripts/audioforge-pw-check.py` -> PipeWire available; real filter-chain path unavailable (discovery only).
+- Direct launch/readiness/HTTP state/SIGTERM smoke -> `mode=simulation`, `bypass=True`, exit code 0, generated config removed.
+- `git diff --check` -> **pass**.

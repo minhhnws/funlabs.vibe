@@ -6,7 +6,7 @@ AudioForge is a localhost control surface for a PipeWire playback processor. It 
 
 - Linux with Python 3.11+ and `uv` (or a compatible Python environment)
 - `pw-dump` for read-only sink/channel discovery
-- Optional real integration: PipeWire's filter-chain module and `pw-cli`
+- Optional future integration: a separately validated native PipeWire adapter
 - `curl` for the launch readiness check; an installed desktop opener is optional
 
 Run from the checkout:
@@ -21,7 +21,7 @@ The UI is served by the existing local API/UI assets. Open `http://127.0.0.1:876
 ## Modes and safety
 
 - **Simulation:** structured filter-chain JSON is generated for inspection, but no PipeWire node is claimed or created.
-- **Live:** set `AUDIOFORGE_PIPEWIRE_FILTER_CHAIN=1` only after verifying the host's `pw-cli` filter-chain support. AudioForge requires a clean creation result, a numeric object ID, and a successful `pw-cli info <id>` graph check before it reports live or clears bypass. Any stderr, nonzero exit, missing/invalid ID, or failed graph check stays in fallback with bypass enabled. The command receives an argument list, never a shell string.
+- **Live:** unavailable in this milestone. The generated JSON is an application inspection artifact, not a PipeWire factory configuration, and AudioForge does not invoke `pw-cli create-node` from it. No environment variable can opt into live mode. Live mode may only be added by supplying a separately validated adapter that translates the configuration into a supported native API, verifies the returned object in the graph, and owns teardown. Until then, bypass remains enabled.
 - **Fallback:** missing `pw-dump`, a disappearing sink, an unsupported module, or a failed node command keeps output bypassed and leaves the direct route preferred.
 - **Stop:** Ctrl-C or termination destroys the owned node when present, removes the generated config, and restores the direct/bypassed route. Never kill `pipewire` or `wireplumber` as application cleanup.
 

@@ -58,8 +58,7 @@ def test_serialization_rejects_non_finite_and_unsupported_values():
 
 def test_manager_writes_config_and_stop_restores_direct_route(tmp_path: Path):
     state = create_default_state()
-    calls = []
-    manager = FilterChainManager(tmp_path, command_runner=lambda argv: calls.append(argv))
+    manager = FilterChainManager(tmp_path)
 
     path = manager.start(state, sink_name="default")
     assert path.exists()
@@ -68,28 +67,53 @@ def test_manager_writes_config_and_stop_restores_direct_route(tmp_path: Path):
 
     manager.stop()
     assert manager.mode == "direct-fallback"
-    assert calls == []
     assert not path.exists()
 
 
-def test_manager_uses_supported_engine_without_shell_interpolation(tmp_path: Path):
+class FakeAdapter:
+    def __init__(self, create, verify=None):
+        self.create_result = create
+        self.verify_result = verify
+        self.calls = []
+
+    def create(self, path: Path):
+        self.calls.append(("create", path))
+        return self.create_result
+
+    def verify(self, node_id: str):
+        self.calls.append(("verify", node_id))
+        return self.verify_result
+
+    def destroy(self, node_id: str):
+        self.calls.append(("destroy", node_id))
+        return subprocess.CompletedProcess([], 0, "", "")
+
+
+def test_live_requires_explicit_validated_adapter(tmp_path: Path):
     state = create_default_state()
-    calls = []
     manager = FilterChainManager(
         tmp_path,
-        command_runner=lambda argv: calls.append(list(argv)) or subprocess.CompletedProcess(argv, 0, "id: 42, type: PipeWire:Interface:Node\n", ""),
         engine_supported=True,
     )
 
     manager.start(state, sink_name="safe sink")
-    node_id = manager.node_id
+    assert manager.mode == "simulation"
     manager.stop()
 
-    assert calls[0][0] == "pw-cli"
-    assert all(isinstance(arg, str) for arg in calls[0])
-    assert "safe sink" not in " ".join(calls[0])
-    assert node_id == "42"
-    assert calls[-1] == ["pw-cli", "destroy", node_id]
+    assert manager.mode == "direct-fallback"
+    assert manager.node_id is None
+
+
+def test_validated_adapter_must_verify_before_live(tmp_path: Path):
+    adapter = FakeAdapter(
+        subprocess.CompletedProcess([], 0, "id: 42, type: PipeWire:Interface:Node\n", ""),
+        subprocess.CompletedProcess([], 0, "id: 42, type: PipeWire:Interface:Node\n", ""),
+    )
+    manager = FilterChainManager(tmp_path, adapter=adapter)
+    manager.start(create_default_state(), sink_name="safe sink")
+    manager.stop()
+    assert manager.mode == "direct-fallback"
+    assert [kind for kind, _ in adapter.calls] == ["create", "verify", "destroy"]
 
 
 @pytest.mark.parametrize(
@@ -102,33 +126,26 @@ def test_manager_uses_supported_engine_without_shell_interpolation(tmp_path: Pat
     ],
 )
 def test_creation_uncertainty_keeps_fallback_and_does_not_destroy(tmp_path: Path, result):
-    calls = []
-
-    def runner(argv):
-        calls.append(list(argv))
-        return result
-
-    manager = FilterChainManager(tmp_path, command_runner=runner, engine_supported=True)
+    adapter = FakeAdapter(result)
+    manager = FilterChainManager(tmp_path, adapter=adapter)
     manager.start(create_default_state())
 
     assert manager.mode == "fallback"
     assert manager.node_id is None
     manager.stop()
-    assert not any(argv[1] == "destroy" for argv in calls)
+    assert not any(kind == "destroy" for kind, _ in adapter.calls)
 
 
 def test_created_id_must_be_verified_in_graph_before_live(tmp_path: Path):
-    calls = []
-
-    def runner(argv):
-        calls.append(list(argv))
-        if argv[1] == "create-node":
-            return subprocess.CompletedProcess(argv, 0, "id: 42, type: PipeWire:Interface:Node\n", "")
-        return subprocess.CompletedProcess(argv, 1, "", "object not found")
-
-    manager = FilterChainManager(tmp_path, command_runner=runner, engine_supported=True)
+    adapter = FakeAdapter(
+        subprocess.CompletedProcess([], 0, "id: 42, type: PipeWire:Interface:Node\n", ""),
+        subprocess.CompletedProcess([], 1, "", "object not found"),
+    )
+    manager = FilterChainManager(tmp_path, adapter=adapter)
     manager.start(create_default_state())
 
     assert manager.mode == "fallback"
     assert manager.node_id is None
-    assert calls[-1] == ["pw-cli", "info", "42"]
+    assert [kind for kind, _ in adapter.calls] == ["create", "verify"]
+    assert not any(kind == "destroy" for kind, _ in adapter.calls)
+    assert not list(tmp_path.iterdir())

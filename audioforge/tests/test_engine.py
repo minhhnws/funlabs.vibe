@@ -4,6 +4,7 @@ from audioforge.app.state import create_default_state
 from audioforge.tests.test_pipewire import dump_payload
 import subprocess
 from pathlib import Path
+import pytest
 from audioforge.app.filter_chain import FilterChainManager
 
 
@@ -84,20 +85,51 @@ def test_engine_reports_nonzero_pw_dump_without_traceback():
     assert "permission denied" in status.reason
 
 
-def test_engine_keeps_bypass_on_pw_cli_stderr_only_creation(tmp_path: Path):
+def test_engine_keeps_bypass_on_adapter_stderr_only_creation(tmp_path: Path):
     state = create_default_state()
-    adapter = PipeWireAdapter(runner=lambda _argv: dump_payload())
-    manager = FilterChainManager(
-        tmp_path,
-        engine_supported=True,
-        command_runner=lambda argv: subprocess.CompletedProcess(
-            argv, 0, "", "unknown factory name libpipewire-module-filter-chain"
-        ),
-    )
+    pw_adapter = PipeWireAdapter(runner=lambda _argv: dump_payload())
 
-    status = start_engine(state, adapter, manager)
+    class FailingAdapter:
+        def create(self, _path):
+            return subprocess.CompletedProcess([], 0, "", "unknown factory")
+        def verify(self, _node_id):
+            raise AssertionError("verification must not run after creation failure")
+        def destroy(self, _node_id):
+            raise AssertionError("unverified node must not be destroyed")
+
+    manager = FilterChainManager(tmp_path, adapter=FailingAdapter())
+    status = start_engine(state, pw_adapter, manager)
 
     assert status.mode == "live"
     assert status.filter_chain_available is False
     assert state.bypass is True
     assert manager.mode == "fallback"
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize(
+    "creation",
+    [
+        subprocess.CompletedProcess([], 0, "", "warning from adapter"),
+        subprocess.CompletedProcess([], 1, "id: 42", "creation failed"),
+        subprocess.CompletedProcess([], 0, "malformed id", ""),
+    ],
+)
+def test_engine_failure_matrix_retains_bypass_and_cleans_config(tmp_path: Path, creation):
+    state = create_default_state()
+    pw_adapter = PipeWireAdapter(runner=lambda _argv: dump_payload())
+
+    class UncertainAdapter:
+        def create(self, _path):
+            return creation
+        def verify(self, _node_id):
+            return subprocess.CompletedProcess([], 1, "", "graph verification failed")
+        def destroy(self, _node_id):
+            raise AssertionError("unverified node must not be destroyed")
+
+    manager = FilterChainManager(tmp_path, adapter=UncertainAdapter())
+    status = start_engine(state, pw_adapter, manager)
+    assert status.filter_chain_available is False
+    assert state.bypass is True
+    assert manager.node_id is None
+    assert not list(tmp_path.iterdir())

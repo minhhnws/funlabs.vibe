@@ -6,13 +6,19 @@ import math
 import re
 import subprocess
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Protocol
 
 from .state import AudioState, validate_state
 
 
 MODULE_ORDER = ("preamp", "eq", "compressor", "saturation", "imaging", "limiter", "output")
-CommandRunner = Callable[[list[str]], Any]
+
+class ValidatedFilterChainAdapter(Protocol):
+    """Explicit integration boundary for a separately validated native adapter."""
+
+    def create(self, config_path: Path) -> Any: ...
+    def verify(self, node_id: str) -> Any: ...
+    def destroy(self, node_id: str) -> Any: ...
 
 
 def serialize_value(value: Any) -> str:
@@ -72,11 +78,13 @@ def render_filter_chain_conf(state: AudioState, *, sink_name: str | None = None)
 
 
 class FilterChainManager:
-    """Own a generated config and optionally a real pw-cli node."""
+    """Own the inspection config and an optional validated native node adapter."""
 
-    def __init__(self, config_dir: str | Path, *, command_runner: CommandRunner | None = None, engine_supported: bool = False):
+    def __init__(self, config_dir: str | Path, *, adapter: Any | None = None, engine_supported: bool = False):
         self.config_dir = Path(config_dir)
-        self.command_runner = command_runner or self._run_command
+        # engine_supported is retained for API compatibility, but cannot opt in
+        # to live mode. Only an explicitly supplied, validated adapter may do so.
+        self.adapter = adapter
         self.engine_supported = engine_supported
         self.config_path: Path | None = None
         self.node_id: str | None = None
@@ -112,16 +120,17 @@ class FilterChainManager:
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.config_path = self.config_dir / "audioforge-filter-chain.json"
         self.config_path.write_text(render_filter_chain_conf(state, sink_name=sink_name), encoding="utf-8")
-        if not self.engine_supported:
+        config_path = self.config_path
+        if self.adapter is None:
             self.mode = "simulation"
-            return self.config_path
+            return config_path
         try:
-            result = self.command_runner(["pw-cli", "create-node", "libpipewire-module-filter-chain", str(self.config_path)])
+            result = self.adapter.create(self.config_path)
             output, _ = self._checked_result(result, "filter-chain creation")
             candidate = self._object_id(output)
             if candidate is None:
                 raise RuntimeError("filter-chain creation returned no valid object ID")
-            verification = self.command_runner(["pw-cli", "info", candidate])
+            verification = self.adapter.verify(candidate)
             graph_output, _ = self._checked_result(verification, "filter-chain graph verification")
             verified_id = self._object_id(graph_output)
             if verified_id != candidate:
@@ -133,12 +142,16 @@ class FilterChainManager:
             self.node_id = None
             self.mode = "fallback"
             self.last_error = str(exc)
-        return self.config_path
+            if self.config_path and self.config_path.exists():
+                self.config_path.unlink()
+            self.config_path = None
+        return config_path
 
     def stop(self) -> None:
         if self.node_id:
             try:
-                self.command_runner(["pw-cli", "destroy", self.node_id])
+                if self.adapter is not None:
+                    self.adapter.destroy(self.node_id)
             except (OSError, subprocess.SubprocessError):
                 pass
         self.node_id = None

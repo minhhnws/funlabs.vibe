@@ -1,5 +1,6 @@
 # AudioForge filter-chain config template
-# Generated values are written by audioforge.app.filter_chain as structured JSON.
+# Generated values are written by audioforge.app.filter_chain as structured JSON
+# for AudioForge inspection/simulation only; this is not a PipeWire factory file.
 # Do not interpolate shell text into this file; target.object is data.
 {
   "version": 1,
