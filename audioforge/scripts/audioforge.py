@@ -27,13 +27,12 @@ def main() -> int:
     parser.add_argument("--disable-native", action="store_true")
     args = parser.parse_args()
 
-    if args.diagnostic:
-        check = ROOT / "audioforge" / "scripts" / "audioforge-pw-check.py"
-        subprocess.run([sys.executable, str(check)], check=False)
-
     native = None if args.disable_native or os.environ.get("AUDIOFORGE_NATIVE", "1") == "0" else NativePipeWireHost(args.config_dir)
     manager = FilterChainManager(args.config_dir, adapter=native)
     controller = AudioForgeController(chain_manager=manager)
+    if args.diagnostic:
+        check = ROOT / "audioforge" / "scripts" / "audioforge-pw-check.py"
+        subprocess.run([sys.executable, str(check)], check=False)
     server = create_server(args.host, args.port, controller=controller)
     print(f"AudioForge API listening on http://{args.host}:{args.port}", flush=True)
     def request_shutdown(_signum, _frame):
