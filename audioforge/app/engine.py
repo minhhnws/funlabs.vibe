@@ -43,13 +43,15 @@ def start_engine(state: AudioState, adapter: PipeWireAdapter | None = None) -> E
         state.channel_layout = layout.name
         state.routing = sink.name or "default-sink"
         state.protection = None
-        state.bypass = False
-        return EngineStatus(
+        status = EngineStatus(
             mode="live", sink_name=sink.name, sample_rate=state.sample_rate,
             channels=layout.channels, channel_layout=layout.name,
             downmix_required=layout.downmix_required,
             stereo_widening=layout.stereo_widening,
         )
+        if status.filter_chain_available:
+            state.bypass = False
+        return status
     except Exception as exc:  # device loss and malformed graphs are fail-safe
         return safe_fallback(state, f"engine start failed: {exc}")
 

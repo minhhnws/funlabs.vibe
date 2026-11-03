@@ -76,6 +76,8 @@ class AudioForgeController:
         else:
             mode = "simulation"
             label = "SIMULATION / PipeWire unavailable"
+        if not status.filter_chain_available:
+            self.state.bypass = True
         return {
             "mode": mode, "label": label, "reason": status.reason,
             "sink_name": status.sink_name, "sample_rate": status.sample_rate or self.state.sample_rate,
@@ -86,8 +88,14 @@ class AudioForgeController:
             "protection": self.state.protection or status.reason,
         }
 
+    def _enforce_safe_bypass(self) -> None:
+        if not self.status.get("filter_chain_available", False):
+            self.state.bypass = True
+            self.status["bypass"] = True
+
     def payload(self) -> dict[str, Any]:
         with self._lock:
+            self._enforce_safe_bypass()
             frame = self.analyzer.next_frame()
             status = deepcopy(self.status)
             status.update({"bypass": self.state.bypass, "muted": self.state.muted,

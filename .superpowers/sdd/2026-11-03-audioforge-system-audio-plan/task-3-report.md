@@ -57,3 +57,17 @@ The UI includes graphite styling, Club/Cinema profile accents, chain module rail
 - Compile check: `PYTHONPATH=. uv run --with pytest python -m compileall -q audioforge` passed.
 - Static UI smoke check and `node --check audioforge/ui/app.js` passed.
 - `git diff --check` passed.
+
+## Fix round 2 — fail-safe bypass consistency
+
+- Kept engine startup bypassed unless `EngineStatus.filter_chain_available` is true; successful PipeWire discovery alone does not imply a real filter chain.
+- Enforced safe bypass during controller status serialization and direct `POST /api/state` mutation whenever no real filter chain is available.
+- Added fresh-runtime and direct-state-mutation regression tests, and updated the engine lifecycle expectation to match the fail-safe invariant.
+
+## Fix round 2 verification
+
+- Focused server suite: **8 passed** (`PYTHONPATH=. uv run --with pytest pytest audioforge/tests/test_server.py -q`).
+- Full suite: **32 passed** (`PYTHONPATH=. uv run --with pytest pytest -q`).
+- Compile check: `PYTHONPATH=. uv run --with pytest python -m compileall -q audioforge` passed.
+- JavaScript syntax check: `node --check audioforge/ui/app.js` passed.
+- `git diff --check` passed.

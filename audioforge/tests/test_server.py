@@ -24,6 +24,33 @@ def request(conn, method, path, payload=None, headers=None):
     return response, json.loads(data) if data else None
 
 
+def test_fresh_runtime_keeps_bypass_when_filter_chain_is_unavailable():
+    server = create_server(port=0)
+    conn, thread = client(server)
+    try:
+        response, payload = request(conn, "GET", "/api/state")
+        assert response.status == 200
+        assert payload["status"]["mode"] == "simulation"
+        assert payload["status"]["filter_chain_available"] is False
+        assert payload["state"]["bypass"] is True
+        assert payload["status"]["bypass"] is True
+    finally:
+        server.shutdown(); server.server_close(); thread.join(timeout=2)
+
+
+def test_direct_state_mutation_cannot_clear_safe_bypass_without_filter_chain():
+    server = create_server(port=0)
+    conn, thread = client(server)
+    try:
+        response, payload = request(conn, "POST", "/api/state", {"bypass": False})
+        assert response.status == 200
+        assert payload["status"]["filter_chain_available"] is False
+        assert payload["state"]["bypass"] is True
+        assert payload["status"]["bypass"] is True
+    finally:
+        server.shutdown(); server.server_close(); thread.join(timeout=2)
+
+
 def test_state_retrieval_and_bounded_mutation():
     server = create_server(port=0)
     conn, thread = client(server)

@@ -4,12 +4,13 @@ from audioforge.app.state import create_default_state
 from audioforge.tests.test_pipewire import dump_payload
 
 
-def test_start_stays_bypassed_until_discovery_succeeds():
+def test_start_stays_bypassed_without_a_filter_chain():
     state = create_default_state()
     adapter = PipeWireAdapter(runner=lambda _argv: dump_payload())
     status = start_engine(state, adapter)
     assert status.mode == "live"
-    assert state.bypass is False
+    assert status.filter_chain_available is False
+    assert state.bypass is True
     assert status.channel_layout == "stereo"
     assert status.downmix_required is True
     assert status.stereo_widening is False
