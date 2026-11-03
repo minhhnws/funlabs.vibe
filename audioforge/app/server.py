@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 import threading
 from copy import deepcopy
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -11,11 +12,13 @@ from urllib.parse import urlparse
 
 from .analyzer import Analyzer
 from .engine import EngineStatus, safe_fallback, set_bypass, start_engine
+from .filter_chain import FilterChainManager
 from .presets import load_preset, save_preset
 from .state import AudioState, SnapshotState, create_default_state, create_profile_state, state_to_dict, validate_state
 
 API_VERSION = "1.0"
 STATE_SCHEMA_VERSION = 1
+_UI_ROOT = Path(__file__).resolve().parents[1] / "ui"
 _LOCALHOST_NAMES = {"localhost", "127.0.0.1", "::1"}
 _EQ_PARAMS = {"low_db": (-12.0, 12.0), "mid_db": (-12.0, 12.0), "high_db": (-12.0, 12.0), "presence_db": (-12.0, 12.0)}
 _DYNAMICS_PARAMS = {"threshold_db": (-60.0, 0.0), "ratio": (1.0, 20.0)}
@@ -58,13 +61,14 @@ def _slot(value: Any) -> str:
 
 
 class AudioForgeController:
-    def __init__(self, preset_dir: str | Path | None = None, state: AudioState | None = None):
+    def __init__(self, preset_dir: str | Path | None = None, state: AudioState | None = None, chain_manager: FilterChainManager | None = None):
         self.state = validate_state(state or create_default_state())
         self.snapshots = SnapshotState()
         self.analyzer = Analyzer(self.state)
         self.preset_dir = Path(preset_dir or (Path.home() / ".local" / "share" / "audioforge" / "presets"))
+        self.chain_manager = chain_manager
         self._lock = threading.RLock()
-        self.status = self._status_from_engine(start_engine(self.state))
+        self.status = self._status_from_engine(start_engine(self.state, chain_manager=chain_manager))
 
     def _status_from_engine(self, status: EngineStatus) -> dict[str, Any]:
         if status.mode == "fallback":
@@ -92,6 +96,14 @@ class AudioForgeController:
         if not self.status.get("filter_chain_available", False):
             self.state.bypass = True
             self.status["bypass"] = True
+
+    def _sync_chain(self) -> None:
+        if self.chain_manager is not None:
+            self.chain_manager.start(self.state, sink_name=self.status.get("sink_name"))
+            self.status["filter_chain_available"] = self.chain_manager.mode == "live"
+            if not self.status["filter_chain_available"]:
+                self.state.bypass = True
+                self.status["bypass"] = True
 
     def payload(self) -> dict[str, Any]:
         with self._lock:
@@ -132,6 +144,7 @@ class AudioForgeController:
                     raise ValueError(f"unknown state field: {key}")
             self.state = validate_state(self.state)
             self.analyzer.state = self.state
+            self._sync_chain()
             return self.payload()
 
     def profile(self, name: str) -> dict[str, Any]:
@@ -141,6 +154,7 @@ class AudioForgeController:
             fresh = create_default_state(name)
             fresh.output_gain_db, fresh.limiter_ceiling_db, fresh.bypass, fresh.muted = old.output_gain_db, old.limiter_ceiling_db, old.bypass, old.muted
             self.state = fresh; self.analyzer.state = fresh
+            self._sync_chain()
             return self.payload()
 
     def action(self, data: dict[str, Any]) -> dict[str, Any]:
@@ -184,10 +198,10 @@ def _preset_name(value: Any) -> str:
     return name
 
 
-def create_server(host: str = "127.0.0.1", port: int = 8765, *, preset_dir: str | Path | None = None, controller: AudioForgeController | None = None) -> ThreadingHTTPServer:
+def create_server(host: str = "127.0.0.1", port: int = 8765, *, preset_dir: str | Path | None = None, controller: AudioForgeController | None = None, chain_manager: FilterChainManager | None = None) -> ThreadingHTTPServer:
     if host not in {"127.0.0.1", "localhost", "::1"}:
         raise ValueError("AudioForge API binds to localhost only")
-    controller = controller or AudioForgeController(preset_dir=preset_dir)
+    controller = controller or AudioForgeController(preset_dir=preset_dir, chain_manager=chain_manager)
     def allowed_origin(origin: str | None) -> str | None:
         if not origin: return None
         parsed = urlparse(origin)
@@ -202,6 +216,8 @@ def create_server(host: str = "127.0.0.1", port: int = 8765, *, preset_dir: str 
             if origin:
                 self.send_header("Access-Control-Allow-Origin", origin); self.send_header("Vary", "Origin")
             self.end_headers(); self.wfile.write(raw)
+        def _send_bytes(self, raw: bytes, content_type: str):
+            self.send_response(200); self.send_header("Content-Type", content_type); self.send_header("Content-Length", str(len(raw))); self.end_headers(); self.wfile.write(raw)
         def do_OPTIONS(self):
             self.send_response(204)
             origin = allowed_origin(self.headers.get("Origin"))
@@ -209,6 +225,11 @@ def create_server(host: str = "127.0.0.1", port: int = 8765, *, preset_dir: str 
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS"); self.send_header("Access-Control-Allow-Headers", "Content-Type"); self.end_headers()
         def do_GET(self):
             path = urlparse(self.path).path
+            if path in {"/", "/index.html", "/styles.css", "/app.js"}:
+                target = _UI_ROOT / ("index.html" if path in {"/", "/index.html"} else path.lstrip("/"))
+                if target.is_file():
+                    self._send_bytes(target.read_bytes(), mimetypes.guess_type(str(target))[0] or "application/octet-stream")
+                    return
             if path == "/api/state": return self._send(200, controller.payload())
             if path == "/api/presets":
                 controller.preset_dir.mkdir(parents=True, exist_ok=True); return self._send(200, {"presets": sorted(p.stem for p in controller.preset_dir.glob("*.json"))})

@@ -1,0 +1,17 @@
+# AudioForge filter-chain config template
+# Generated values are written by audioforge.app.filter_chain as structured JSON.
+# Do not interpolate shell text into this file; target.object is data.
+{
+  "version": 1,
+  "channel_layout": "stereo",
+  "properties": {"target.object": null},
+  "chain": [
+    {"name": "preamp", "enabled": true, "parameters": {"gain_db": 0.0}},
+    {"name": "eq", "enabled": true, "parameters": {}},
+    {"name": "compressor", "enabled": true, "parameters": {}},
+    {"name": "saturation", "enabled": true, "parameters": {}},
+    {"name": "imaging", "enabled": true, "parameters": {"mode": "stereo"}},
+    {"name": "limiter", "enabled": true, "parameters": {"ceiling_db": -1.0}},
+    {"name": "output", "enabled": true, "parameters": {"gain_db": 0.0}}
+  ]
+}

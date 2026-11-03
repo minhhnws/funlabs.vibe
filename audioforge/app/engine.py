@@ -27,7 +27,7 @@ def safe_fallback(state: AudioState, reason: str) -> EngineStatus:
     return EngineStatus(mode="fallback", reason=reason, channel_layout=state.channel_layout)
 
 
-def start_engine(state: AudioState, adapter: PipeWireAdapter | None = None) -> EngineStatus:
+def start_engine(state: AudioState, adapter: PipeWireAdapter | None = None, chain_manager=None) -> EngineStatus:
     """Discover first; only then release the safe startup bypass."""
     state.bypass = True
     try:
@@ -43,11 +43,17 @@ def start_engine(state: AudioState, adapter: PipeWireAdapter | None = None) -> E
         state.channel_layout = layout.name
         state.routing = sink.name or "default-sink"
         state.protection = None
+        filter_available = False
+        if chain_manager is not None:
+            chain_manager.start(state, sink_name=sink.name)
+            filter_available = chain_manager.mode == "live"
         status = EngineStatus(
             mode="live", sink_name=sink.name, sample_rate=state.sample_rate,
             channels=layout.channels, channel_layout=layout.name,
             downmix_required=layout.downmix_required,
             stereo_widening=layout.stereo_widening,
+            filter_chain_available=filter_available,
+            reason=(getattr(chain_manager, "last_error", None) if chain_manager is not None else None),
         )
         if status.filter_chain_available:
             state.bypass = False
@@ -56,8 +62,10 @@ def start_engine(state: AudioState, adapter: PipeWireAdapter | None = None) -> E
         return safe_fallback(state, f"engine start failed: {exc}")
 
 
-def stop_engine(state: AudioState) -> EngineStatus:
+def stop_engine(state: AudioState, chain_manager=None) -> EngineStatus:
     state.bypass = True
+    if chain_manager is not None:
+        chain_manager.stop()
     if state.routing == "direct-fallback":
         return EngineStatus(mode="fallback", reason=state.protection, channel_layout=state.channel_layout)
     state.routing = "default-sink"
